@@ -1,4 +1,5 @@
 # moexR 
-## How to get repo trades from moex.com 
+## How to get data from moex.com 
 
-I need to get history of trades on repo - market (Moscow exchange currency).
+In this project, I want to create some functions for working with the API of the Moscow Exchange Currency (moex.com).
+
