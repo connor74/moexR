@@ -6,29 +6,42 @@ library(dplyr)
 
 
 k <- TRUE
-i = 5000 # max row in the request
+i = 1 # max row in the request
 while(k) {
   path <- "http://iss.moex.com/iss/history/engines/stock/markets/ccp/trades.xml?date="
   date <- "2019-03-04"
-  
-  r <- GET(paste0(path, date))
-  xml <- read_xml(r)
-  
+  if(i == 1) {
+    link <- paste0(path, date)
+  } else {
+    link <- paste0(path, date, "&start=", as.character(i + 1))
+  }
+
+  xml <- read_xml(GET(link))
   rows <- xml_find_all(xml, "//row")
-  df <- data.frame(
-    TRADEDATE = xml_attr(rows, "TRADEDATE"),
-    BOARDID = xml_attr(rows, "BOARDID"),
-    SECID = xml_attr(rows, "SECID"),
-    REPORATE = xml_attr(rows, "REPORATE")
-  )
+  
+  if(length(rows) == 0) break
+  
+  if(is.null(dim(df))) {
+    df <- data.frame(
+      TRADEDATE = xml_attr(rows, "TRADEDATE"),
+      TRADETIME = xml_attr(rows, "REPORATE"),
+      BOARDID = xml_attr(rows, "BOARDID"),
+      SECID = xml_attr(rows, "SECID"),
+      REPORATE = xml_attr(rows, "REPORATE")
+    )    
+  } else {
+    df_add <- data.frame(
+      TRADEDATE = xml_attr(rows, "TRADEDATE"),
+      TRADETIME = xml_attr(rows, "REPORATE"),
+      BOARDID = xml_attr(rows, "BOARDID"),
+      SECID = xml_attr(rows, "SECID"),
+      REPORATE = xml_attr(rows, "REPORATE")
+    ) 
+    df <- rbind(df, df_add)
+    rm(df_add)
+  }
+
+  i = i + 5000
 }
 
 
-xml_attr(rows, "TRADEDATE")
-
-
-for(i in 1:30) {
-  
-  
-  read_xml(paste0())
-}
