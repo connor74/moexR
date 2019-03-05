@@ -39,7 +39,6 @@ get_repo_by_date <- function(date) {
       df <- rbind(df, df_add)
       rm(df_add)
     }
-  
     i = i + 5000
   }  
 }
