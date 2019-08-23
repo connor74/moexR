@@ -147,3 +147,21 @@ get_sec_params <- function() {
   return(df)
 }
 
+
+library(jsonlite)
+require(dplyr)
+from <- "2019-08-19"
+till <- "2019-08-22"
+name <- "AFLT"
+board <- "TQBR"
+js <- fromJSON(paste0("http://iss.moex.com/iss/history/engines/stock/markets/shares/boards/",board,"/securities/",name,".json?from=",from,"&till=",till))
+df <- as.data.frame(js$history$data)
+names(df) <- js$history$columns
+options(digits = 12)
+df <- df %>% 
+  mutate_at(
+    vars(NUMTRADES:WAVAL),
+    funs(as.numeric(as.character(.)))
+  )
+
+str(df)
