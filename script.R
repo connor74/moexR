@@ -1,167 +1,152 @@
+#################################################################################################################
+# Unofficial ISS MOEX API on R
+#
+# http://iss.moex.com/iss/reference/
+#################################################################################################################
 
-get_params_isin <- function(isin = "") {
-  ##############################################
-  # 
-  # ФУНКЦИЯ: Получение параметров бумаги по ISIN
-  # @ isin - isin код искомой бумаги
-  #
-  #############################################  
-  
-  require(xml2)
-  
-  require(httr)
-  path <- "https://iss.moex.com/iss/securities/"
-  k <- read_xml(GET(paste0(path, isin, ".xml"))) 
-  
-  iss <- read_xml("RU000A0JXUC1.xml")
-  param_list <- xml_find_all(iss, ".//row")
-  
-  l <- list(
-    'name' = xml_attr(param_list, "name")[1:27],
-    'title' = xml_attr(param_list, "title")[1:27],
-    'value' = xml_attr(param_list, "value")[1:27]
-  )
-  
-  df <- as.data.frame(t(l$value))
-  names(df) <- l$name 
-  
-  return(df)
-}
 
-read_by_date <- function(date, boards="EQOB") {
+#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#
+# 1. List of securities on MOEX.
+#
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+get_all_securities <- function() {
   
-  #############################################
-  # 
-  # ФУНКЦИЯ: Получение итогов торгов за дату
-  # date - дата торгов
-  # boards - площадки
-  #
-  #############################################  
-  require(dplyr)
   require(jsonlite)
-  i = 0
-  l = list()
-  while(TRUE) {
-    path <- paste0("http://iss.moex.com/iss/history/engines/stock/markets/bonds/boards/",boards,"/securities.json?date=",date)
-    if(i != 0) {
-      path <- paste0(path, "&start=", as.character(i + 1))
-    }
-    jdata <- fromJSON(path, simplifyDataFrame = T)$history[2:3]
-    
-    if(length(jdata$data) == 0) break
-    
-    df_ <- as.data.frame(jdata$data)
-    names(df_) <- jdata$columns
-    l[[i+1]] <- df_
-    
+  require(dplyr)
+  
+  i = 1; l  = TRUE; df <- data.frame()
+  while(l) {
+    jsn <- fromJSON(paste0("https://iss.moex.com/iss/securities.json?start=", i))
+    l = (length(jsn$securities$data) != 0) 
+    temp <- as.data.frame(jsn$securities$data, stringsAsFactors = FALSE)
+    df <- rbind(df, temp)
     i = i + 100
   }
-  
-  df <- bind_rows(l)
-  
-  if(any(dim(df) == 0)) return(NULL)
-  df <- df %>% 
-    mutate_at(
-      vars(TRADEDATE, MATDATE, OFFERDATE, BUYBACKDATE, LASTTRADEDATE),
-      funs(as.Date(.))
-    )  %>%
-    mutate_at(
-      vars(NUMTRADES, VALUE, LOW, HIGH, CLOSE, LEGALCLOSEPRICE, ACCINT, WAPRICE,
-           YIELDCLOSE, OPEN, VOLUME, MARKETPRICE2, MARKETPRICE3, ADMITTEDQUOTE, 
-           MP2VALTRD, MARKETPRICE3TRADESVALUE, ADMITTEDVALUE, DURATION, YIELDATWAP,
-           IRICPICLOSE, BEICLOSE, COUPONPERCENT, COUPONVALUE, FACEVALUE, CBRCLOSE,
-           YIELDTOOFFER, YIELDLASTCOUPON),
-      funs(as.numeric(as.character(.)))
-    ) %>% 
-    mutate_at(
-      vars(SHORTNAME, SECID),
-      funs(as.character(.))
-    ) 
+  names(df) <- fromJSON("https://iss.moex.com/iss/securities.json")$securities$columns
   df <- df %>%
-    mutate(
-      ISDEALS = if_else(NUMTRADES > 0, 1, 0)
+    mutate_at(
+      vars(is_traded, type:marketprice_boardid),
+      funs(as.factor(.))
     )
   return(df)
 }
 
-
-
-read_days <- function(date, boards="EQOB", tdays=30) {
-  ###############################################################
-  # 
-  # Получение итогов торгов за несколько торговых дней
-  # boards - площадка
-  # date - дата последнего торгового дня для обратного отсчета
-  # t_days - количество торговых дней
-  ###############################################################
-  require(dplyr)
+#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#
+# 2. Get a specification of security
+#
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# Fields of output list:
+# ----------------------------------
+# SECID - Код ценной бумаги
+# NAME - Полное наименование
+# SHORTNAME - Краткое наименование
+# ISIN - ISIN код
+# REGNUMBER - Номер государственной регистрации
+# ISSUESIZE - Объем выпуска
+# FACEVALUE - Номинальная стоимость
+# FACEUNIT - Валюта номинала
+# ISSUEDATE - Дата начала торгов
+# LATNAME - Английское наименование
+# LISTLEVEL - Уровень листинга
+# ISQUALIFIEDINVESTORS - Бумаги для квалифицированных инвесторов
+# TYPENAME - Вид/категория ценной бумаги
+# GROUP - Код типа инструмента
+# TYPE - Тип бумаги
+# GROUPNAME - Типа инструмента
+# EMITTER_ID - Код эмитента
+# MATDATE - Дата погашения
+# INITIALFACEVALUE - Первоначальная номинальная стоимость
+#
+#
+#
+#
+#
+#
+#
+#
+get_spec_security <- function(secid) {
   require(jsonlite)
-  l <- list()
-  date <- as.Date(date)
-  while(tdays != 0) {
-    df1 <- read_by_date(as.character(date), "EQOB")
-    if(!is.null(df1)) {
-      l[[as.character(date)]] <- df1
-      date = date - 1
-      tdays = tdays - 1
-    } else {
-      date = date - 1
-    }
+  require(dplyr)
+  jsn <- fromJSON(paste0("https://iss.moex.com/iss/securities/", secid, ".json"))
+  if(length(jsn$description$data) == 0) {
+    message(paste0("Security not found: ", secid))
+    stop()
   }
-  return(bind_rows(l))
+  df <- as.data.frame(jsn$description$data, stringsAsFactors = FALSE)
+  l <- as.list(setNames(df$V3, df$V1))
+  
+  number <- df %>% filter(V4 == 'number')
+  l[number$V1] <- lapply(l[number$V1], as.numeric)
+  date <- df %>% filter(V4 == 'date')
+  l[date$V1] <- lapply(l[date$V1], as.Date)
+
+  b <- as.data.frame(jsn$boards$data, stringsAsFactors = FALSE)
+  names(b) <- jsn$boards$columns
+  summary(b)
+  b <- b %>%
+    mutate_at(
+      vars(board_group_id, market_id, market_id, market, engine_id, engine, is_traded, is_primary, currencyid),
+      funs(as.factor)
+    ) %>%
+    mutate_at(vars(history_from:listed_till), funs(as.Date))
+  return(list(params=l, boards = b))
 }
 
-get_sec_params <- function() {
-  ############################################
-  # Получить статичные параметры по всем облигациям
-  #
-  #
-  ##############################################
+#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#
+# 3. Get global ISS directories
+#
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+jsn <- fromJSON("https://iss.moex.com/iss/index.json")
+engines <- as.data.frame(jsn$engines$data)
+names(engines) <- jsn$engines$columns
+
+jsn$markets$columns
+
+
+#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#
+# _. Get shares history (by security ID)
+#
+#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+
+
+get_share_id <- function(secid, dt_begin='', dt_end='') {
   require(jsonlite)
   require(dplyr)
-  jdata <- fromJSON("http://iss.moex.com/iss/engines/stock/markets/bonds/securities.json")
+  sec_param <- fromJSON(paste0('https://iss.moex.com/iss/securities/', secid ,'.json'))
+  board <- sec_param$boards$data[sec_param$boards$data[,15] == 1][2]
+  if(dt_begin == '' | dt_end == '') {
+    dt_begin <- as.character(Sys.Date() - 31)
+    dt_end <- as.character(Sys.Date() - 1)
+  }
+  n <- 1
+  k <- TRUE   
+  temp <- data.frame(stringsAsFactors = FALSE)
+  while(k) {
+    hist <- fromJSON(paste0('http://iss.moex.com/iss/history/engines/stock/markets/shares/securities/',
+                            secid,'.json?from=',dt_begin,'&till=',dt_end,'&start=', n))
+    if(!is.null(dim(hist$history$data)[1])) {
+      temp <- rbind(temp, hist$history$data, stringsAsFactors = FALSE)
+      n <- n + 100
+    }
+    else { k <- FALSE }
+  }
+  names(temp) <- hist$history$columns
   
-  df <- data.frame(jdata$securities$data)
-  names(df) <- jdata$securities$columns
-  
-  df$BUYBACKDATE<- as.character(df$BUYBACKDATE)
-  df$BUYBACKDATE <- ifelse(df$BUYBACKDATE == "0000-00-00", NA, df$BUYBACKDATE) 
-  
-  df <- df %>% 
+  df <- temp %>%
+    filter(BOARDID == board) %>%
+    select(-WAVAL) %>%
+    mutate_all(as.character) %>%
     mutate_at(
-      vars(NEXTCOUPON, MATDATE, PREVDATE, BUYBACKDATE, OFFERDATE, SETTLEDATE),
-      funs(as.Date(.))
-    ) 
+      vars(NUMTRADES:ADMITTEDVALUE),
+      funs(as.numeric(.))
+    ) %>%
+    mutate(TRADEDATE = as.Date(TRADEDATE)) 
   
-  df <- df%>%
-    mutate_at(
-      vars(PREVWAPRICE:COUPONVALUE, ACCRUEDINT:FACEVALUE, COUPONPERIOD:PREVADMITTEDQUOTE, MINSTEP, ISSUESIZEPLACED, COUPONPERCENT, LOTVALUE),
-      funs(as.numeric(as.character(.)))
-    )
-  
-  df <- df%>%
-    mutate_at(
-      vars(SHORTNAME, SECNAME, LATNAME, REGNUMBER, SECID),
-      funs(as.character(.))
-    )
   return(df)
 }
-
-
-library(jsonlite)
-require(dplyr)
-from <- "2019-08-19"
-till <- "2019-08-22"
-name <- "AFLT"
-board <- "TQBR"
-js <- fromJSON(paste0("http://iss.moex.com/iss/history/engines/stock/markets/shares/boards/",board,"/securities/",name,".json?from=",from,"&till=",till))
-df <- as.data.frame(js$history$data)
-names(df) <- js$history$columns
-options(digits = 12)
-df <- df %>% 
-  mutate_at(
-    vars(NUMTRADES:WAVAL),
-    funs(as.numeric(as.character(.)))
-  )
-
-str(df)
